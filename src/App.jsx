@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import useDeviceDetect from './hooks/useDeviceDetect';
 import { fetchFinancialData } from './services/api';
 import MobileChatView from './components/views/MobileChatView';
-import MobileChatView from './components/views/MobileChatView';
 import DesktopDashboardView from './components/views/DesktopDashboardView';
 
 function App() {
