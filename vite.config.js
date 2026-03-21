@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: './', // Using relative path for versatility
+  base: '/Finance-app/', // Update to match your repo name for GH Pages
   plugins: [
     react(),
     VitePWA({
