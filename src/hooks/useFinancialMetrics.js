@@ -1,74 +1,72 @@
 import { useMemo } from 'react';
 
 /**
- * Custom hook to calculate financial metrics based on rule 50-30-10-10
- * and debt progression.
+ * Custom hook to calculate financial metrics and budget adherence.
+ * Rules: 50-30-10-10 based on Total Income.
  */
-const useFinancialMetrics = (transactions = [], debts = []) => {
-    return useMemo(() => {
-        // 1. Total Income (Current Month)
-        const totalIncome = transactions
-            .filter(t => t.Type === 'Income')
-            .reduce((acc, t) => acc + Number(t.Amount), 0);
+const useFinancialMetrics = (data) => {
+  const transactions = data?.financial_data?.transactions || [];
+  const debts = data?.financial_data?.debts_master || [];
 
-        // 2. Budget Rules (50-30-10-10)
-        const budgetLimits = {
-            essentials: totalIncome * 0.50,
-            wants: totalIncome * 0.30,
-            savings: totalIncome * 0.10,
-            personal: totalIncome * 0.10
-        };
+  return useMemo(() => {
+    // 1. Calculations for Totals
+    const totalIncome = transactions
+      .filter(t => t.Type === 'Income')
+      .reduce((sum, t) => sum + Number(t.Amount || 0), 0);
 
-        // 3. Real Spending by Category Groups
-        const realSpending = {
-            essentials: transactions.filter(t => t.Category?.includes('Responsabilidades')).reduce((acc, t) => acc + Number(t.Amount), 0),
-            wants: transactions.filter(t => t.Category?.includes('Gastos')).reduce((acc, t) => acc + Number(t.Amount), 0),
-            savings: transactions.filter(t => t.Category?.includes('Ahorros')).reduce((acc, t) => acc + Number(t.Amount), 0),
-            personal: transactions.filter(t => t.Category?.includes('Personal')).reduce((acc, t) => acc + Number(t.Amount), 0)
-        };
+    const totalExpenses = transactions
+      .filter(t => t.Type === 'Expense')
+      .reduce((sum, t) => sum + Number(t.Amount || 0), 0);
 
-        // 4. Debt Progression
-        const debtProgress = debts.map(debt => {
-            const paidToThisDebt = transactions
-                .filter(t => t.Debt_ID === debt.ID && (t.Type === 'Debt Payment' || t.Category?.includes('Deuda')))
-                .reduce((acc, t) => acc + Number(t.Amount), 0);
-            
-            const remaining = Number(debt.Total_Amount) - paidToThisDebt;
-            const percentage = (paidToThisDebt / Number(debt.Total_Amount)) * 100;
+    const currentBalance = totalIncome - totalExpenses;
 
-            return {
-                ...debt,
-                paid: paidToThisDebt,
-                remaining: remaining > 0 ? remaining : 0,
-                percentage: percentage > 100 ? 100 : percentage
-            };
-        });
+    // 2. Budget 50-30-10-10 Ideal vs Actual
+    // We categorize based on typical financial categories
+    const budget = {
+      needs: { label: 'Essentials (50%)', limit: totalIncome * 0.5, actual: 0, color: 'bg-indigo-500' },
+      wants: { label: 'Wants (30%)', limit: totalIncome * 0.3, actual: 0, color: 'bg-amber-500' },
+      savings: { label: 'Savings (10%)', limit: totalIncome * 0.1, actual: 0, color: 'bg-emerald-500' },
+      lifestyle: { label: 'Personal (10%)', limit: totalIncome * 0.1, actual: 0, color: 'bg-rose-500' }
+    };
 
-        // 5. Bi-Weekly Logic
-        const today = new Date();
-        const currentDay = today.getDate();
-        const isFirstFortnight = currentDay <= 15;
-        
-        // Filter debts/responsibilities due in the current fortnight
-        const currentAlerts = debts.filter(d => {
-            const dueDate = new Date(d.Due_Date);
-            const dueDay = dueDate.getDate();
-            if (isFirstFortnight) {
-                return dueDay <= 15;
-            } else {
-                return dueDay > 15;
-            }
-        });
+    transactions.forEach(t => {
+      if (t.Type === 'Expense') {
+        const cat = t.Category?.toLowerCase();
+        const amt = Number(t.Amount || 0);
+        if (['rent', 'services', 'food', 'fixed', 'debt payment'].includes(cat)) budget.needs.actual += amt;
+        else if (['transport', 'subscriptions', 'entertainment'].includes(cat)) budget.wants.actual += amt;
+        else if (['savings', 'investment'].includes(cat)) budget.savings.actual += amt;
+        else budget.lifestyle.actual += amt;
+      }
+    });
 
-        return {
-            totalIncome,
-            budgetLimits,
-            realSpending,
-            debtProgress,
-            fortnight: isFirstFortnight ? 'First Fortnight (1-15)' : 'Second Fortnight (16-End)',
-            currentAlerts
-        };
-    }, [transactions, debts]);
+    // 3. Debt Reconciliation
+    const processedDebts = debts.map(debt => {
+      // Find payments related to this specific debt name in transactions
+      const totalPaid = transactions
+        .filter(t => t.Category === 'Debt Payment' && (t.Concept || '').includes(debt.Concept))
+        .reduce((sum, t) => sum + Number(t.Amount || 0), 0);
+      
+      const total = Number(debt.Total_Amount || 0);
+      const remaining = total - totalPaid;
+      const progress = total > 0 ? (totalPaid / total) * 100 : 0;
+
+      return {
+        ...debt,
+        paid: totalPaid,
+        remaining: remaining > 0 ? remaining : 0,
+        progress: progress > 100 ? 100 : progress.toFixed(1)
+      };
+    });
+
+    return {
+      totalIncome,
+      totalExpenses,
+      currentBalance,
+      budget,
+      processedDebts
+    };
+  }, [transactions, debts]);
 };
 
 export default useFinancialMetrics;

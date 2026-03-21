@@ -11,19 +11,17 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
-        name: 'Fina - Personal Finance',
+        name: 'Fina - Personal Finance V2',
         short_name: 'Fina',
-        description: 'Smart Server-Driven Financial App',
+        description: 'Smart Server-Driven Financial Vault',
         theme_color: '#4f46e5',
+        background_color: '#0f172a',
+        display: 'standalone',
+        orientation: 'portrait',
         icons: [
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
             type: 'image/png'
           },
           {

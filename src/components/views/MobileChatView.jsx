@@ -1,175 +1,179 @@
 import React, { useState, useEffect, useRef } from 'react';
-import SDUIEngine from '../sdui/SDUIEngine';
+import { postData } from '../../services/api';
 
-const API_URL = "https://script.google.com/macros/s/AKfycbx270L2FdDmTn_ftVfpb3AQeZGstquj3CqlXWgE1KYwBThh9hbV8BDUBf-wvTrZ_iNldA/exec";
+const FLOWS = {
+  ADD_TRANSACTION: [
+    { key: 'concept', label: 'Concept', type: 'textfield', prompt: 'What did you spend on? (Description)' },
+    { key: 'amount', label: 'Amount', type: 'number', prompt: 'How much?' },
+    { key: 'category', label: 'Category', type: 'select', options: ['Food', 'Rent', 'Transport', 'Personal', 'Other'], prompt: 'Select a category:' }
+  ],
+  ADD_DEBT: [
+    { key: 'concept', label: 'Debt Concept', type: 'textfield', prompt: 'Name of the debt (e.g. Credit Card):' },
+    { key: 'installment', label: 'Installment Amount', type: 'number', prompt: 'How much is the monthly fee?' },
+    { key: 'total', label: 'Total Amount', type: 'number', prompt: 'What is the total initial debt?' },
+    { key: 'entity', label: 'Entity', type: 'textfield', prompt: 'Who is the lender? (Bank/Person):' },
+    { key: 'day', label: 'Payment Day', type: 'number', prompt: 'On which day of the month is it paid? (1-31):' }
+  ]
+};
 
-const MobileChatView = ({ config, data }) => {
-    const [messages, setMessages] = useState([
-        { id: 1, type: 'ai', text: "Hola! I'm your financial assistant. What would you like to do today?" }
+const MobileChatView = ({ data }) => {
+  const [messages, setMessages] = useState([{ sender: 'bot', text: 'Welcome back! What do you want to register today?' }]);
+  const [currentFlow, setCurrentFlow] = useState(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [formData, setFormData] = useState({});
+  const [inputValue, setInputValue] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
+
+  const startFlow = (flowType) => {
+    const type = flowType === 'Income' || flowType === 'Expense' ? 'ADD_TRANSACTION' : 'ADD_DEBT';
+    setCurrentFlow(type);
+    setStepIndex(0);
+    setFormData(type === 'ADD_TRANSACTION' ? { type: flowType } : {});
+    setMessages(prev => [...prev, 
+      { sender: 'user', text: `Start ${flowType}` },
+      { sender: 'bot', text: FLOWS[type][0].prompt }
     ]);
-    const [activeAction, setActiveAction] = useState(null); // e.g., "ADD_TRANSACTION"
-    const [formData, setFormData] = useState({});
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const scrollRef = useRef(null);
+  };
 
-    // Auto-scroll to bottom on new messages
-    useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-    }, [messages, activeAction]);
+  const handleNextStep = async () => {
+    if (!inputValue && FLOWS[currentFlow][stepIndex].type !== 'select') return;
 
-    const handleActionSelect = (actionType, label) => {
-        setMessages(prev => [...prev, { id: Date.now(), type: 'user', text: label }]);
-        setActiveAction(actionType);
+    const currentStep = FLOWS[currentFlow][stepIndex];
+    const newFormData = { ...formData, [currentStep.key]: inputValue };
+    setFormData(newFormData);
+    
+    setMessages(prev => [...prev, { sender: 'user', text: inputValue }]);
+    setInputValue('');
+
+    const nextIndex = stepIndex + 1;
+    if (nextIndex < FLOWS[currentFlow].length) {
+      setStepIndex(nextIndex);
+      setMessages(prev => [...prev, { sender: 'bot', text: FLOWS[currentFlow][nextIndex].prompt }]);
+    } else {
+      // Flow Complete
+      await submitFlow(newFormData);
+    }
+  };
+
+  const submitFlow = async (finalData) => {
+    setIsSaving(true);
+    setMessages(prev => [...prev, { sender: 'bot', text: 'Syncing with your vault...' }]);
+    
+    try {
+      const payload = {
+        action: currentFlow,
+        ...finalData
+      };
+      await postData(payload);
+      
+      setMessages(prev => [...prev, { sender: 'bot', text: '✅ Success! Data encrypted and saved to your cloud.' }]);
+      setTimeout(() => {
+        setCurrentFlow(null);
+        setStepIndex(0);
         setFormData({});
-        
-        setTimeout(() => {
-            setMessages(prev => [...prev, { 
-                id: Date.now() + 1, 
-                type: 'ai', 
-                text: `Perfect. Please fill in the details for: ${label}` 
-            }]);
-        }, 500);
-    };
+        setMessages(prev => [...prev, { sender: 'bot', text: 'What else can I help you with?' }]);
+      }, 1500);
+    } catch (err) {
+      setMessages(prev => [...prev, { sender: 'bot', text: '❌ Error: Could not reach the server. Try again later.' }]);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
-    const handleInputChange = (field, value) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-    };
-
-    const submitData = async () => {
-        setIsSubmitting(true);
-        try {
-            // Map SDUI fields to API expected fields
-            // The mapping depends on what exactly is in ui_config.mobile
-            const payload = {
-                action: activeAction,
-                ...Object.keys(formData).reduce((acc, key) => {
-                    // Convert keys to lowercase snake_case or whatever the API expects
-                    const apiKey = key.toLowerCase().replace(/ /g, '_');
-                    acc[apiKey] = formData[key];
-                    return acc;
-                }, {})
-            };
-
-            const response = await fetch(API_URL, {
-                method: "POST",
-                mode: "no-cors", // Crucial for GAS
-                headers: { "Content-Type": "text/plain" },
-                body: JSON.stringify(payload)
-            });
-
-            // Since it's no-cors, we don't get a proper response, but we assume success if no error
-            setMessages(prev => [...prev, { 
-                id: Date.now(), 
-                type: 'ai', 
-                text: "✅ Got it! I've saved that to your spreadsheet." 
-            }]);
-            setActiveAction(null);
-            setFormData({});
-        } catch (error) {
-            console.error("Submission error:", error);
-            setMessages(prev => [...prev, { 
-                id: Date.now(), 
-                type: 'ai', 
-                text: "❌ Oops, something went wrong. Please try again." 
-            }]);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="h-screen bg-slate-50 flex flex-col font-sans overflow-hidden">
-            {/* Header */}
-            <header className="p-5 pt-8 bg-white border-b border-slate-100 shadow-sm z-10 rounded-b-[32px]">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-indigo-100 font-bold text-lg">
-                        F
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-black text-slate-900 leading-tight">Fina AI</h1>
-                        <div className="flex items-center gap-1">
-                            <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Online</span>
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* Chat Area */}
-            <main ref={scrollRef} className="flex-1 p-6 space-y-4 overflow-y-auto scroll-smooth">
-                {messages.map((m) => (
-                    <div key={m.id} className={`flex ${m.type === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                        <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm text-sm font-medium ${
-                            m.type === 'user' 
-                            ? 'bg-indigo-600 text-white rounded-tr-none' 
-                            : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
-                        }`}>
-                            {m.text}
-                        </div>
-                    </div>
-                ))}
-
-                {/* SDUI Dynamic Form */}
-                {activeAction && (
-                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="bg-white p-6 rounded-[32px] shadow-xl shadow-slate-200/50 border border-slate-100 border-t-4 border-t-indigo-500">
-                            <SDUIEngine 
-                                config={config.filter(c => c.Action_Type === activeAction)} 
-                                formData={formData}
-                                onInputChange={handleInputChange}
-                                isSubmitting={isSubmitting}
-                            />
-                            <button 
-                                onClick={submitData}
-                                disabled={isSubmitting}
-                                className={`w-full mt-4 p-4 rounded-2xl font-bold transition-all shadow-lg ${
-                                    isSubmitting 
-                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                                    : 'bg-indigo-600 text-white shadow-indigo-100 hover:bg-indigo-700 active:scale-95'
-                                }`}
-                            >
-                                {isSubmitting ? 'Syncing...' : 'Save Record'}
-                            </button>
-                            <button 
-                                onClick={() => setActiveAction(null)}
-                                className="w-full mt-2 text-xs font-bold text-slate-400 p-2"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </main>
-
-            {/* Quick Actions / Input Area */}
-            <footer className="p-6 bg-white border-t border-slate-100 rounded-t-[40px] shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
-                {!activeAction ? (
-                    <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
-                        {/* Unique Actions from UI Config */}
-                        {[...new Set(config.map(item => item.Action_Type))].map(actionType => {
-                            const actionInfo = config.find(c => c.Action_Type === actionType);
-                            return (
-                                <button
-                                    key={actionType}
-                                    onClick={() => handleActionSelect(actionType, actionInfo.Label)}
-                                    className="whitespace-nowrap px-6 py-4 bg-slate-50 border border-slate-200 rounded-3xl text-sm font-bold text-slate-700 shadow-sm hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-600 transition-all active:scale-95 flex items-center gap-2"
-                                >
-                                    <span>{actionInfo.Icon || '⚡️'}</span>
-                                    {actionInfo.Label}
-                                </button>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="text-center py-2">
-                        <p className="text-xs font-bold text-slate-300 uppercase tracking-widest">Complete the form above</p>
-                    </div>
-                )}
-            </footer>
+  return (
+    <div className="h-screen flex flex-col bg-slate-900 text-white font-sans overflow-hidden">
+      {/* Header */}
+      <header className="p-6 border-b border-white/5 bg-slate-900/50 backdrop-blur-xl flex justify-between items-center">
+        <div className="flex items-center gap-3">
+           <div className="w-8 h-8 bg-indigo-500 rounded-xl flex items-center justify-center font-black italic">F</div>
+           <span className="font-black tracking-tighter italic">FINA.</span>
         </div>
-    );
+        <div className="px-3 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase tracking-widest rounded-full border border-emerald-500/20">
+          Live Sync
+        </div>
+      </header>
+
+      {/* Chat Area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.sender === 'bot' ? 'justify-start' : 'justify-end'}`}>
+            <div className={`max-w-[85%] p-4 rounded-3xl text-sm font-medium leading-relaxed font-sans
+              ${m.sender === 'bot' 
+                ? 'bg-slate-800 text-slate-200 rounded-tl-sm shadow-xl' 
+                : 'bg-indigo-600 text-white rounded-tr-sm shadow-lg shadow-indigo-500/20'}`}>
+              {m.text}
+            </div>
+          </div>
+        ))}
+        {isSaving && (
+           <div className="flex justify-start">
+             <div className="bg-slate-800 p-4 rounded-3xl rounded-tl-sm flex gap-2">
+               <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+               <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-.3s]"></div>
+               <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-.5s]"></div>
+             </div>
+           </div>
+        )}
+      </div>
+
+      {/* Input Area */}
+      <footer className="p-6 bg-slate-800/50 border-t border-white/5 backdrop-blur-2xl">
+        {!currentFlow ? (
+          <div className="grid grid-cols-2 gap-3">
+             <button onClick={() => startFlow('Income')} className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-2xl font-black text-xs uppercase transition-all active:scale-95">Add Income</button>
+             <button onClick={() => startFlow('Expense')} className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl font-black text-xs uppercase transition-all active:scale-95">Add Expense</button>
+             <button onClick={() => startFlow('Debt')} className="col-span-2 p-4 bg-indigo-500 text-white rounded-2xl font-black text-xs uppercase shadow-xl shadow-indigo-500/20 transition-all active:scale-95">Add New Master Debt</button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+             {FLOWS[currentFlow][stepIndex].type === 'select' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {FLOWS[currentFlow][stepIndex].options.map(opt => (
+                    <button 
+                      key={opt}
+                      onClick={() => { setInputValue(opt); setTimeout(handleNextStep, 100); }} 
+                      className="p-3 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold transition-all"
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+             ) : (
+                <div className="relative">
+                  <input 
+                    type={FLOWS[currentFlow][stepIndex].type === 'number' ? 'number' : 'text'}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder={`Enter ${FLOWS[currentFlow][stepIndex].label}...`}
+                    className="w-full bg-slate-900 border border-white/10 p-5 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    onKeyPress={(e) => e.key === 'Enter' && handleNextStep()}
+                    autoFocus
+                  />
+                  <button 
+                    onClick={handleNextStep}
+                    className="absolute right-3 top-3 w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20"
+                  >
+                    →
+                  </button>
+                </div>
+             )}
+             <button 
+              onClick={() => { setCurrentFlow(null); setMessages(prev => [...prev, {sender: 'bot', text: 'Canceled. What else?'}]) }}
+              className="w-full text-[10px] font-black uppercase text-slate-500 py-2"
+             >
+               Cancel Action
+             </button>
+          </div>
+        )}
+      </footer>
+    </div>
+  );
 };
 
 export default MobileChatView;
