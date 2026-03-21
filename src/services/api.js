@@ -20,22 +20,26 @@ export const fetchFinancialData = async () => {
 
 /**
  * Post action data to GAS
+ * CORS HACK: Use text/plain;charset=utf-8 to avoid preflight (OPTIONS)
  * @param {Object} payload { action: string, ...data }
  */
 export const postData = async (payload) => {
     try {
-        // GAS requires text/plain and no-cors for simple POST to avoid preflight issues
         const response = await fetch(GAS_URL, {
             method: "POST",
             mode: "no-cors",
             headers: {
-                "Content-Type": "text/plain",
+                "Content-Type": "text/plain;charset=utf-8",
             },
             body: JSON.stringify(payload),
         });
-        return response; // No-cors response is opaque
+        
+        // Note: With no-cors, the response is opaque. 
+        // We cannot read response.json() or check response.ok.
+        // We assume success if no error is thrown by fetch.
+        return { success: true, message: "Request sent (opaque)" };
     } catch (error) {
-        console.error("postData error:", error);
+        console.error("postData exact error:", error);
         throw error;
     }
 };

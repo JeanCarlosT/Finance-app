@@ -66,10 +66,28 @@ const MobileChatView = ({ data }) => {
     setMessages(prev => [...prev, { sender: 'bot', text: 'Syncing with your vault...' }]);
     
     try {
+      // 1. Sanitize and Format data for the specific action
+      const sanitizedData = {};
+      
+      if (currentFlow === 'ADD_TRANSACTION') {
+        sanitizedData.type = finalData.type || 'Expense';
+        sanitizedData.concept = (finalData.concept || '').trim();
+        sanitizedData.amount = parseFloat(finalData.amount) || 0;
+        sanitizedData.category = finalData.category || 'Other';
+      } else if (currentFlow === 'ADD_DEBT') {
+        sanitizedData.concept = (finalData.concept || '').trim();
+        sanitizedData.installment = parseFloat(finalData.installment) || 0;
+        sanitizedData.total = parseFloat(finalData.total) || 0;
+        sanitizedData.entity = (finalData.entity || '').trim();
+        sanitizedData.day = parseInt(finalData.day) || 1;
+      }
+
       const payload = {
         action: currentFlow,
-        ...finalData
+        ...sanitizedData
       };
+
+      console.log("🚀 Submitting to GAS:", payload);
       await postData(payload);
       
       setMessages(prev => [...prev, { sender: 'bot', text: '✅ Success! Data encrypted and saved to your cloud.' }]);
@@ -80,6 +98,7 @@ const MobileChatView = ({ data }) => {
         setMessages(prev => [...prev, { sender: 'bot', text: 'What else can I help you with?' }]);
       }, 1500);
     } catch (err) {
+      console.error("Submission error:", err);
       setMessages(prev => [...prev, { sender: 'bot', text: '❌ Error: Could not reach the server. Try again later.' }]);
     } finally {
       setIsSaving(false);
