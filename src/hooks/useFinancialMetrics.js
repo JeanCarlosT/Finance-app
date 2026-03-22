@@ -32,6 +32,7 @@ const useFinancialMetrics = (data, filteredTransactions) => {
     Object.keys(rawMapping).forEach(key => {
       mapping[key.toLowerCase()] = rawMapping[key];
     });
+    console.log("Budget Mapping Normalized:", mapping);
 
     // Savings in THIS period
     const totalSavings = txForTotals
@@ -69,10 +70,16 @@ const useFinancialMetrics = (data, filteredTransactions) => {
       const debtConcept = String(debt.Concept || debt.concept || '');
       const totalPaid = allTransactions
         .filter(t => {
-          const cat = String(t.Category || t.category || '').toLowerCase();
-          const concept = String(t.Concept || t.concept || '');
+          const cat = String(t.Category || t.category || '').toLowerCase().trim();
+          const concept = String(t.Concept || t.concept || '').toLowerCase().trim();
           const group = (mapping[cat] || '').toLowerCase();
-          return group === 'debt' && concept.toLowerCase().includes(debtConcept.toLowerCase());
+          
+          const isMatch = group === 'debt' && concept.includes(debtConcept.toLowerCase().trim());
+          
+          if (group === 'debt' || cat === 'abonos') {
+            console.log(`Checking match: Cat[${cat}] -> Group[${group}]. Concept[${concept}] vs Debt[${debtConcept.toLowerCase().trim()}] -> Match: ${isMatch}`);
+          }
+          return isMatch;
         })
         .reduce((sum, t) => sum + Number(t.Amount || t.amount || 0), 0);
       

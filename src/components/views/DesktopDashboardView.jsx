@@ -177,30 +177,33 @@ const DesktopDashboardView = ({ data }) => {
               <thead>
                 <tr className="bg-gray-50/50">
                   <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">Concept</th>
-                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">{activeTab === 'debts' ? 'Entity' : 'Saved'}</th>
-                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">{activeTab === 'debts' ? 'Installment' : 'Target'}</th>
+                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">{activeTab === 'debts' ? 'Paid' : 'Saved'}</th>
+                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">{activeTab === 'debts' ? 'Total' : 'Target'}</th>
                   <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">{activeTab === 'debts' ? 'Remaining' : 'Pending'}</th>
                   <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">Progress</th>
-                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100 text-right">{activeTab === 'debts' ? 'Payment Day' : 'Priority'}</th>
+                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100 text-right">{activeTab === 'debts' ? 'Monthly Fee' : 'Priority'}</th>
                 </tr>
               </thead>
               <tbody>
                 {activeTab === 'debts' ? (
                   processedDebts.length > 0 ? processedDebts.map((debt, idx) => (
                     <tr key={idx} className="group hover:bg-gray-50/50 transition-colors">
-                      <td className="px-10 py-6 font-black text-sm tracking-tight">{debt.Concept}</td>
-                      <td className="px-10 py-6 text-xs font-bold text-gray-400">{debt.Entity || 'Direct'}</td>
-                      <td className="px-10 py-6 font-black text-indigo-600 text-xs">${debt.Installment_Amount || 0}</td>
+                      <td className="px-10 py-6">
+                        <div className="font-black text-sm tracking-tight">{debt.Concept}</div>
+                        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{debt.Entity || 'Direct'} • Day {debt.Payment_Day_of_Month}</div>
+                      </td>
+                      <td className="px-10 py-6 text-xs font-bold text-rose-500">${debt.paid.toLocaleString()}</td>
+                      <td className="px-10 py-6 font-black text-gray-400 text-xs">${(Number(debt.Total_Amount || debt.total_amount || 0)).toLocaleString()}</td>
                       <td className="px-10 py-6 font-black text-slate-800 text-xs">${debt.remaining.toLocaleString()}</td>
                       <td className="px-10 py-6">
                         <div className="flex items-center gap-3 min-w-[120px]">
                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-indigo-500" style={{ width: `${debt.progress}%` }}></div>
+                              <div className="h-full bg-rose-500" style={{ width: `${debt.progress}%` }}></div>
                            </div>
                            <span className="text-[10px] font-black text-gray-400">{debt.progress}%</span>
                         </div>
                       </td>
-                      <td className="px-10 py-6 text-right font-black text-xs text-gray-400">Day {debt.Payment_Day_of_Month}</td>
+                      <td className="px-10 py-6 text-right font-black text-xs text-indigo-600">${debt.Installment_Amount || 0}</td>
                     </tr>
                   )) : (
                     <tr><td colSpan="6" className="px-10 py-20 text-center text-gray-300 font-bold italic">No active debts found.</td></tr>
