@@ -2,7 +2,7 @@
  * API Service for Google Apps Script Communication
  */
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbznfFEBX6wufSzkTNGVW2bS-fFLCLj7YjjS_Jxov6mEQCydcziwlbg93X3uJx2s_aX5Qw/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwhUJXnmzFsXwHIlfKaT1FGTSU7l-iROLEndW7NvR8zoBLNIZ2odLO5kyc_wRMdPchBOg/exec";
 
 /**
  * Fetch financial data and UI config from GAS
