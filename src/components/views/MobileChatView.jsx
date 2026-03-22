@@ -8,6 +8,7 @@ const MobileChatView = ({ data }) => {
   const [formData, setFormData] = useState({});
   const [inputValue, setInputValue] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   const scrollRef = useRef(null);
 
@@ -72,6 +73,7 @@ const MobileChatView = ({ data }) => {
     const typeFromSheet = (configItem.Type || configItem.type || '').toLowerCase();
     const type = typeFromSheet === 'in' ? 'Income' : (typeFromSheet === 'out' ? 'Expense' : 'Expense');
     setFormData(configItem.Action_Type === 'ADD_TRANSACTION' ? { type } : {});
+    setHasError(false);
 
     setMessages(prev => [...prev,
     { sender: 'user', text: `${configItem.Icon || '⚡️'} Start ${configItem.Label}` },
@@ -101,6 +103,7 @@ const MobileChatView = ({ data }) => {
 
   const submitFlow = async (finalData) => {
     setIsSaving(true);
+    setHasError(false);
     setMessages(prev => [...prev, { sender: 'bot', text: 'Syncing with your vault...' }]);
 
     try {
@@ -143,6 +146,7 @@ const MobileChatView = ({ data }) => {
       }, 1500);
     } catch (err) {
       console.error("Submission error:", err);
+      setHasError(true);
       setMessages(prev => [...prev, { sender: 'bot', text: '❌ Error: Could not reach the server.' }]);
     } finally {
       setIsSaving(false);
@@ -251,8 +255,17 @@ const MobileChatView = ({ data }) => {
                 </div>
               </div>
             )}
+            {hasError && (
+              <button 
+                onClick={() => submitFlow(formData)}
+                disabled={isSaving}
+                className="w-full mt-4 p-4 bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-600/20 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {isSaving ? 'Retrying...' : '⚠️ Retry Submission'}
+              </button>
+            )}
             <button
-              onClick={() => { setCurrentFlow(null); setMessages(prev => [...prev, { sender: 'bot', text: 'Canceled. What else?' }]) }}
+              onClick={() => { setCurrentFlow(null); setHasError(false); setMessages(prev => [...prev, { sender: 'bot', text: 'Canceled. What else?' }]) }}
               className="w-full text-[10px] font-black uppercase text-slate-500 py-2"
             >
               Cancel Action
