@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { postData } from '../../services/api';
 
 const MobileChatView = ({ data }) => {
@@ -14,6 +14,13 @@ const MobileChatView = ({ data }) => {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  const allConcepts = useMemo(() => {
+    const goals = data?.financial_data?.savings_goals || [];
+    const debts = data?.financial_data?.debts_master || [];
+    const combined = [...goals, ...debts].map(item => item.Concept || item.concept).filter(Boolean);
+    return [...new Set(combined)];
+  }, [data]);
 
   // Helper to generate dynamic steps for the selected action
   const getFlowSteps = (configItem) => {
@@ -211,22 +218,37 @@ const MobileChatView = ({ data }) => {
                 ))}
               </div>
             ) : (
-              <div className="relative">
-                <input
-                  type={steps[stepIndex]?.type === 'number' ? 'number' : 'text'}
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  placeholder={`Enter ${steps[stepIndex]?.label || 'value'}...`}
-                  className="w-full bg-slate-900 border border-white/10 p-5 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                  onKeyPress={(e) => e.key === 'Enter' && handleNextStep()}
-                  autoFocus
-                />
-                <button
-                  onClick={() => handleNextStep()}
-                  className="absolute right-3 top-3 w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20"
-                >
-                  →
-                </button>
+              <div className="space-y-4">
+                {steps[stepIndex]?.key === 'concept' && allConcepts.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                    {allConcepts.map(c => (
+                      <button 
+                        key={c}
+                        onClick={() => handleNextStep(c)}
+                        className="px-4 py-2 bg-slate-700/50 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-tight whitespace-nowrap active:bg-indigo-500 transition-all hover:border-indigo-500/50"
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="relative">
+                  <input
+                    type={steps[stepIndex]?.type === 'number' ? 'number' : 'text'}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder={`Enter ${steps[stepIndex]?.label || 'value'}...`}
+                    className="w-full bg-slate-900 border border-white/10 p-5 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    onKeyPress={(e) => e.key === 'Enter' && handleNextStep()}
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => handleNextStep()}
+                    className="absolute right-3 top-3 w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20"
+                  >
+                    →
+                  </button>
+                </div>
               </div>
             )}
             <button
