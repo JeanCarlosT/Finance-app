@@ -1,22 +1,28 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { postData } from '../../services/api';
 
-const FLOWS = {
-  ADD_TRANSACTION: [
-    { key: 'concept', label: 'Concept', type: 'textfield', prompt: 'What did you spend on? (Description)' },
-    { key: 'amount', label: 'Amount', type: 'number', prompt: 'How much?' },
-    { key: 'category', label: 'Category', type: 'select', options: ['Food', 'Rent', 'Transport', 'Personal', 'Other'], prompt: 'Select a category:' }
-  ],
-  ADD_DEBT: [
-    { key: 'concept', label: 'Debt Concept', type: 'textfield', prompt: 'Name of the debt (e.g. Credit Card):' },
-    { key: 'installment', label: 'Installment Amount', type: 'number', prompt: 'How much is the monthly fee?' },
-    { key: 'total', label: 'Total Amount', type: 'number', prompt: 'What is the total initial debt?' },
-    { key: 'entity', label: 'Entity', type: 'textfield', prompt: 'Who is the lender? (Bank/Person):' },
-    { key: 'day', label: 'Payment Day', type: 'number', prompt: 'On which day of the month is it paid? (1-31):' }
-  ]
-};
-
 const MobileChatView = ({ data }) => {
+  const FLOWS = {
+    ADD_TRANSACTION: [
+      { key: 'concept', label: 'Concept', type: 'textfield', prompt: 'What did you spend on? (Description)' },
+      { key: 'amount', label: 'Amount', type: 'number', prompt: 'How much?' },
+      { 
+        key: 'category', 
+        label: 'Category', 
+        type: 'select', 
+        options: data?.financial_data?.categories || ['Food', 'Rent', 'Transport', 'Personal', 'Other'], 
+        prompt: 'Select a category:' 
+      }
+    ],
+    ADD_DEBT: [
+      { key: 'concept', label: 'Debt Concept', type: 'textfield', prompt: 'Name of the debt (e.g. Credit Card):' },
+      { key: 'installment', label: 'Installment Amount', type: 'number', prompt: 'How much is the monthly fee?' },
+      { key: 'total', label: 'Total Amount', type: 'number', prompt: 'What is the total initial debt?' },
+      { key: 'entity', label: 'Entity', type: 'textfield', prompt: 'Who is the lender? (Bank/Person):' },
+      { key: 'day', label: 'Payment Day', type: 'number', prompt: 'On which day of the month is it paid? (1-31):' }
+    ]
+  };
+
   const [messages, setMessages] = useState([{ sender: 'bot', text: 'Welcome back! What do you want to register today?' }]);
   const [currentFlow, setCurrentFlow] = useState(null);
   const [stepIndex, setStepIndex] = useState(0);
@@ -41,14 +47,19 @@ const MobileChatView = ({ data }) => {
     ]);
   };
 
-  const handleNextStep = async () => {
-    if (!inputValue && FLOWS[currentFlow][stepIndex].type !== 'select') return;
+  /**
+   * Handle navigation between steps.
+   * explicitValue is used for 'select' inputs to avoid closure bugs with inputValue.
+   */
+  const handleNextStep = async (explicitValue = null) => {
+    const valueToUse = explicitValue !== null ? explicitValue : inputValue;
+    if (!valueToUse && FLOWS[currentFlow][stepIndex].type !== 'select') return;
 
     const currentStep = FLOWS[currentFlow][stepIndex];
-    const newFormData = { ...formData, [currentStep.key]: inputValue };
+    const newFormData = { ...formData, [currentStep.key]: valueToUse };
     setFormData(newFormData);
     
-    setMessages(prev => [...prev, { sender: 'user', text: inputValue }]);
+    setMessages(prev => [...prev, { sender: 'user', text: valueToUse }]);
     setInputValue('');
 
     const nextIndex = stepIndex + 1;
@@ -168,7 +179,7 @@ const MobileChatView = ({ data }) => {
                   {FLOWS[currentFlow][stepIndex].options.map(opt => (
                     <button 
                       key={opt}
-                      onClick={() => { setInputValue(opt); setTimeout(handleNextStep, 100); }} 
+                      onClick={() => handleNextStep(opt)} 
                       className="p-3 bg-slate-700 hover:bg-slate-600 rounded-xl text-xs font-bold transition-all"
                     >
                       {opt}
