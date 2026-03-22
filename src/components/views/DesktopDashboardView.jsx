@@ -49,15 +49,8 @@ const DesktopDashboardView = ({ data }) => {
   // --- Lógica de Filtrado Quincenal ---
   const { label, nextFortnight, prevFortnight, filterData, startDate, endDate } = useFortnightFilter();
   
-  // LOGS DE DIAGNÓSTICO
-  console.group("🔍 [DASHBOARD DIAGNOSTICS]");
-  console.log("1. Raw Data from GAS:", data);
-  console.log("2. Selected Range:", { label, startDate, endDate });
-  
   const filteredTransactions = useMemo(() => {
-    const filtered = filterData(data?.financial_data?.transactions);
-    console.log("3. Filtered Transactions Count:", filtered?.length);
-    return filtered;
+    return filterData(data?.financial_data?.transactions);
   }, [data, filterData]);
 
   // Re-empaquetamos los datos para useFinancialMetrics
@@ -68,12 +61,11 @@ const DesktopDashboardView = ({ data }) => {
       transactions: filteredTransactions
     }
   }), [data, filteredTransactions]);
-
-  console.log("4. Data Sent to Metrics:", filteredData);
-  console.groupEnd();
-
-  const { totalIncome, totalExpenses, currentBalance, budget, processedDebts } = useFinancialMetrics(filteredData);
+  const { totalIncome, totalExpenses, totalSavings, currentBalance, budget, processedDebts, processedSavings } = useFinancialMetrics(data, filteredTransactions);
   const filteredAlerts = useBiWeeklyAlerts(data?.financial_data?.debts_master);
+  
+  // Tab State
+  const [activeTab, setActiveTab] = React.useState('debts');
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-slate-900 p-10">
@@ -118,7 +110,7 @@ const DesktopDashboardView = ({ data }) => {
         <BiWeeklyAlerts debts={filteredAlerts} />
 
         {/* Top Summary Cards */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <section className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <SummaryCard 
             title="Current Balance" 
             amount={currentBalance} 
@@ -137,6 +129,12 @@ const DesktopDashboardView = ({ data }) => {
             colorClass="text-rose-500"
             subtitle="Spending and debt servicing"
           />
+          <SummaryCard 
+            title="Total Savings" 
+            amount={totalSavings} 
+            colorClass="text-amber-500"
+            subtitle="Set aside for your goals"
+          />
         </section>
 
         {/* Middle Content: Budget Tracker */}
@@ -152,45 +150,81 @@ const DesktopDashboardView = ({ data }) => {
           </div>
         </section>
 
-        {/* Bottom Content: Debts Table */}
-        <section className="bg-white overflow-hidden rounded-[48px] shadow-sm border border-gray-100">
-          <div className="p-10 pb-4">
-            <h2 className="text-2xl font-black tracking-tight italic">Debt Master Protocol</h2>
-            <p className="text-slate-400 text-xs font-bold mt-1">Reconciliation with live transaction history</p>
+        {/* Bottom Section: Debts & Savings Selector */}
+        <section className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div className="flex bg-gray-100 p-1.5 rounded-2xl gap-1">
+              <button 
+                onClick={() => setActiveTab('debts')}
+                className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${activeTab === 'debts' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                DEBT MASTER
+              </button>
+              <button 
+                onClick={() => setActiveTab('savings')}
+                className={`px-8 py-3 rounded-xl text-xs font-black transition-all ${activeTab === 'savings' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                SAVINGS PROSPERITY
+              </button>
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 italic">
+              {activeTab === 'debts' ? 'Reconciliation with live history' : 'Your path to financial freedom'}
+            </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+
+          <div className="bg-white rounded-[48px] shadow-sm border border-gray-100 overflow-hidden">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-gray-50 border-y border-gray-100 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                  <th className="px-10 py-6">Concept</th>
-                  <th className="px-6 py-6">Entity</th>
-                  <th className="px-6 py-6">Installment</th>
-                  <th className="px-6 py-6">Remaining</th>
-                  <th className="px-6 py-6">Progress</th>
-                  <th className="px-10 py-6 text-right">Payment Day</th>
+                <tr className="bg-gray-50/50">
+                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">Concept</th>
+                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">{activeTab === 'debts' ? 'Entity' : 'Saved'}</th>
+                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">{activeTab === 'debts' ? 'Installment' : 'Target'}</th>
+                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">{activeTab === 'debts' ? 'Remaining' : 'Pending'}</th>
+                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">Progress</th>
+                  <th className="px-10 py-6 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100 text-right">{activeTab === 'debts' ? 'Payment Day' : 'Priority'}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
-                {processedDebts.length > 0 ? processedDebts.map((debt, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-10 py-6 font-black text-sm">{debt.Concept}</td>
-                    <td className="px-6 py-6 text-xs font-bold text-gray-500">{debt.Entity}</td>
-                    <td className="px-6 py-6 text-sm font-black text-indigo-600">${Number(debt.Installment_Amount).toLocaleString()}</td>
-                    <td className="px-6 py-6 text-sm font-black">${debt.remaining.toLocaleString()}</td>
-                    <td className="px-6 py-6">
-                      <div className="flex items-center gap-3">
-                         <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full bg-indigo-500" style={{ width: `${debt.progress}%` }}></div>
-                         </div>
-                         <span className="text-[10px] font-black text-gray-400">{debt.progress}%</span>
-                      </div>
-                    </td>
-                    <td className="px-10 py-6 text-right font-black text-xs text-gray-400">Day {debt.Payment_Day_of_Month}</td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan="6" className="px-10 py-20 text-center text-gray-300 font-bold italic">No active debts found in system.</td>
-                  </tr>
+              <tbody>
+                {activeTab === 'debts' ? (
+                  processedDebts.length > 0 ? processedDebts.map((debt, idx) => (
+                    <tr key={idx} className="group hover:bg-gray-50/50 transition-colors">
+                      <td className="px-10 py-6 font-black text-sm tracking-tight">{debt.Concept}</td>
+                      <td className="px-10 py-6 text-xs font-bold text-gray-400">{debt.Entity || 'Direct'}</td>
+                      <td className="px-10 py-6 font-black text-indigo-600 text-xs">${debt.Installment_Amount || 0}</td>
+                      <td className="px-10 py-6 font-black text-slate-800 text-xs">${debt.remaining.toLocaleString()}</td>
+                      <td className="px-10 py-6">
+                        <div className="flex items-center gap-3 min-w-[120px]">
+                           <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full bg-indigo-500" style={{ width: `${debt.progress}%` }}></div>
+                           </div>
+                           <span className="text-[10px] font-black text-gray-400">{debt.progress}%</span>
+                        </div>
+                      </td>
+                      <td className="px-10 py-6 text-right font-black text-xs text-gray-400">Day {debt.Payment_Day_of_Month}</td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan="6" className="px-10 py-20 text-center text-gray-300 font-bold italic">No active debts found.</td></tr>
+                  )
+                ) : (
+                  processedSavings.length > 0 ? processedSavings.map((goal, idx) => (
+                    <tr key={idx} className="group hover:bg-gray-50/50 transition-colors">
+                      <td className="px-10 py-6 font-black text-sm tracking-tight">{goal.Concept}</td>
+                      <td className="px-10 py-6 text-xs font-bold text-emerald-500">${goal.saved.toLocaleString()}</td>
+                      <td className="px-10 py-6 font-black text-gray-400 text-xs">${goal.target.toLocaleString()}</td>
+                      <td className="px-10 py-6 font-black text-slate-800 text-xs">${(goal.target - goal.saved).toLocaleString()}</td>
+                      <td className="px-10 py-6">
+                        <div className="flex items-center gap-3 min-w-[120px]">
+                           <div className="flex-1 h-2 bg-emerald-50 rounded-full overflow-hidden">
+                              <div className="h-full bg-emerald-500" style={{ width: `${goal.progress}%` }}></div>
+                           </div>
+                           <span className="text-[10px] font-black text-gray-400">{goal.progress}%</span>
+                        </div>
+                      </td>
+                      <td className="px-10 py-6 text-right font-black text-xs text-amber-500">Savings Mode</td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan="6" className="px-10 py-20 text-center text-gray-300 font-bold italic">No savings goals defined yet.</td></tr>
+                  )
                 )}
               </tbody>
             </table>

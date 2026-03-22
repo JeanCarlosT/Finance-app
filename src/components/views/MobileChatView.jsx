@@ -43,6 +43,13 @@ const MobileChatView = ({ data }) => {
       ];
     }
     
+    if (configItem.Action_Type === 'ADD_SAVING_GOAL') {
+      return [
+        { key: 'concept', label: 'Goal Name', type: 'textfield', prompt: 'What is the name of this saving goal?' },
+        { key: 'target', label: 'Target Amount', type: 'number', prompt: 'How much do you want to save in total?' }
+      ];
+    }
+    
     return [];
   };
 
@@ -103,6 +110,9 @@ const MobileChatView = ({ data }) => {
         sanitizedData.total = parseFloat(finalData.total) || 0;
         sanitizedData.entity = (finalData.entity || '').trim();
         sanitizedData.day = parseInt(finalData.day) || 1;
+      } else if (actionType === 'ADD_SAVING_GOAL') {
+        sanitizedData.concept = (finalData.concept || '').trim();
+        sanitizedData.target = parseFloat(finalData.target) || 0;
       }
 
       const payload = {

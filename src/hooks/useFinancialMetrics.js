@@ -2,74 +2,77 @@ import { useMemo } from 'react';
 
 /**
  * Custom hook to calculate financial metrics and budget adherence.
- * Rules: 50-30-10-10 based on Total Income.
+ * Rules: 50-30-20 based on Total Income.
  */
-const useFinancialMetrics = (data) => {
-  const transactions = data?.financial_data?.transactions || [];
+const useFinancialMetrics = (data, filteredTransactions) => {
+  const allTransactions = data?.financial_data?.transactions || [];
   const debts = data?.financial_data?.debts_master || [];
+  const savingsGoals = data?.financial_data?.savings_goals || [];
 
   return useMemo(() => {
-    console.log("🧮 [METRICS CALCULATION START]", { 
-      receivedCount: transactions.length,
-      sample: transactions[0] 
+    // 1. Calculations for Totals (ONLY SELECTED PERIOD)
+    const txForTotals = filteredTransactions || [];
+    const totalIncome = txForTotals
+      .filter(t => {
+        const type = (t.Type || t.type || t.transaction || '');
+        return type === 'Income';
+      })
+      .reduce((sum, t) => sum + Number(t.Amount || t.amount || 0), 0);
+
+    const totalExpenses = txForTotals
+      .filter(t => {
+        const type = (t.Type || t.type || t.transaction || '');
+        return type === 'Expense';
+      })
+      .reduce((sum, t) => sum + Number(t.Amount || t.amount || 0), 0);
+
+    // Get dynamic mapping from GAS - Normalize to lowercase keys for robust lookup
+    const rawMapping = data?.financial_data?.budget_mapping || {};
+    const mapping = {};
+    Object.keys(rawMapping).forEach(key => {
+      mapping[key.toLowerCase()] = rawMapping[key];
     });
 
-    // 1. Calculations for Totals
-    const totalIncome = transactions
+    // Savings in THIS period
+    const totalSavings = txForTotals
       .filter(t => {
-        const type = (t.Type || t.type || t.transaction || '');
-        const isIncome = type === 'Income';
-        return isIncome;
+        const catName = String(t.Category || t.category || '').toLowerCase();
+        return (mapping[catName] || '').toLowerCase() === 'savings';
       })
       .reduce((sum, t) => sum + Number(t.Amount || t.amount || 0), 0);
 
-    const totalExpenses = transactions
-      .filter(t => {
-        const type = (t.Type || t.type || t.transaction || '');
-        const isExpense = type === 'Expense';
-        return isExpense;
-      })
-      .reduce((sum, t) => sum + Number(t.Amount || t.amount || 0), 0);
+    const currentBalance = totalIncome - (totalExpenses);
 
-    console.log(`Calculated: Income=$${totalIncome}, Expenses=$${totalExpenses}`);
-
-    const currentBalance = totalIncome - totalExpenses;
-
-    // 2. Budget 50/30/20 Rule
+    // 2. Budget (ONLY SELECTED PERIOD)
     const budget = {
       needs: { label: 'Needs (50%)', limit: totalIncome * 0.5, actual: 0, color: 'bg-indigo-500' },
       wants: { label: 'Wants (30%)', limit: totalIncome * 0.3, actual: 0, color: 'bg-amber-500' },
       savings: { label: 'Savings & Debt (20%)', limit: totalIncome * 0.2, actual: 0, color: 'bg-emerald-500' }
     };
 
-    // Get dynamic mapping from GAS if available
-    const mapping = data?.financial_data?.budget_mapping || {};
-
-    transactions.forEach(t => {
+    txForTotals.forEach(t => {
       const type = (t.Type || t.type || t.transaction || '');
       if (type === 'Expense') {
-        const catName = t.Category || t.category || 'Other';
+        const catName = String(t.Category || t.category || 'Other').toLowerCase();
         const amt = Number(t.Amount || t.amount || 0);
-
-        // Map to group based on the dynamic mapping sheet
         const group = (mapping[catName] || 'Wants').toLowerCase();
-
+        
         if (group === 'needs') budget.needs.actual += amt;
         else if (group === 'wants') budget.wants.actual += amt;
         else if (group === 'savings' || group === 'debt') budget.savings.actual += amt;
-        else budget.wants.actual += amt; // Default to Wants if not categorized
+        else budget.wants.actual += amt;
       }
     });
 
-    // 3. Debt Progress
+    // 3. Debt Progress (ALL TIME)
     const processedDebts = debts.map(debt => {
-      // Find payments related to this specific debt name in transactions
-      const debtConcept = debt.Concept || debt.concept || '';
-      const totalPaid = transactions
+      const debtConcept = String(debt.Concept || debt.concept || '');
+      const totalPaid = allTransactions
         .filter(t => {
-          const cat = t.Category || t.category || '';
-          const concept = t.Concept || t.concept || '';
-          return cat === 'Debt Payment' && concept.includes(debtConcept);
+          const cat = String(t.Category || t.category || '').toLowerCase();
+          const concept = String(t.Concept || t.concept || '');
+          const group = (mapping[cat] || '').toLowerCase();
+          return group === 'debt' && concept.toLowerCase().includes(debtConcept.toLowerCase());
         })
         .reduce((sum, t) => sum + Number(t.Amount || t.amount || 0), 0);
       
@@ -79,20 +82,48 @@ const useFinancialMetrics = (data) => {
 
       return {
         ...debt,
+        Concept: debtConcept,
         paid: totalPaid,
         remaining: remaining > 0 ? remaining : 0,
-        progress: progress > 100 ? 100 : progress.toFixed(1)
+        progress: progress > 100 ? 100 : Number(progress.toFixed(1))
+      };
+    });
+
+    // 4. Savings Goals Progress (ALL TIME)
+    const processedSavings = savingsGoals.map(goal => {
+      const goalConcept = String(goal.Concept || goal.concept || '');
+      
+      const savedAmount = allTransactions
+        .filter(t => {
+          const cat = String(t.Category || t.category || '').toLowerCase();
+          const concept = String(t.Concept || t.concept || '');
+          const group = (mapping[cat] || '').toLowerCase();
+          return group === 'savings' && concept.toLowerCase().includes(goalConcept.toLowerCase());
+        })
+        .reduce((sum, t) => sum + Number(t.Amount || t.amount || 0), 0);
+      
+      const target = Number(goal.Target_Amount || goal.target_amount || 0);
+      const progress = target > 0 ? (savedAmount / target) * 100 : 0;
+
+      return {
+        ...goal,
+        Concept: goalConcept,
+        saved: savedAmount,
+        target: target,
+        progress: progress > 100 ? 100 : Number(progress.toFixed(1))
       };
     });
 
     return {
       totalIncome,
-      totalExpenses,
+      totalExpenses: totalExpenses - totalSavings,
+      totalSavings,
       currentBalance,
       budget,
-      processedDebts
+      processedDebts,
+      processedSavings
     };
-  }, [transactions, debts]);
+  }, [allTransactions, filteredTransactions, debts, savingsGoals, data?.financial_data?.budget_mapping]);
 };
 
 export default useFinancialMetrics;

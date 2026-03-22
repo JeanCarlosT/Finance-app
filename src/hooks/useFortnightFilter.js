@@ -60,24 +60,12 @@ const useFortnightFilter = () => {
     if (!transactions) return [];
     const { startDate, endDate } = fortnightInfo;
     
-    console.log(`--- Filtering ${transactions.length} transactions for range: ${startDate.toISOString()} to ${endDate.toISOString()} ---`);
-
-    return transactions.filter((t, index) => {
+    return transactions.filter((t) => {
       const txDate = t.Date || t.date;
-      if (!txDate) {
-        if (index === 0) console.warn("First transaction missing date field:", t);
-        return false;
-      }
+      if (!txDate) return false;
       
       const tDate = new Date(txDate);
-      const isMatch = tDate >= startDate && tDate <= endDate;
-      
-      // Log some samples to verify formats
-      if (index < 3) {
-        console.log(`Sample ${index}: ${txDate} -> Parsed: ${tDate.toISOString()} -> Match: ${isMatch}`);
-      }
-      
-      return isMatch;
+      return tDate >= startDate && tDate <= endDate;
     });
   };
 
