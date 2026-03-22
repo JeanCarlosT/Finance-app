@@ -87,7 +87,19 @@ const MobileChatView = ({ data }) => {
         ...sanitizedData
       };
 
-      console.log("🚀 Submitting to GAS:", payload);
+      // 🔍 Detailed Logging for the User
+      if (currentFlow === 'ADD_TRANSACTION') {
+        console.group("💰 [V3 - DATA_TRANSACTIONS PAYLOAD]");
+        console.log("Action:", currentFlow);
+        console.log("JSON to Send:", JSON.stringify(payload, null, 2));
+        console.groupEnd();
+      } else if (currentFlow === 'ADD_DEBT') {
+        console.group("💳 [V3 - DATA_DEBTS PAYLOAD]");
+        console.log("Action:", currentFlow);
+        console.log("JSON to Send:", JSON.stringify(payload, null, 2));
+        console.groupEnd();
+      }
+
       await postData(payload);
       
       setMessages(prev => [...prev, { sender: 'bot', text: '✅ Success! Data encrypted and saved to your cloud.' }]);

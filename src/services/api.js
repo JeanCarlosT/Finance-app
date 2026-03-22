@@ -2,7 +2,7 @@
  * API Service for Google Apps Script Communication
  */
 
-const GAS_URL = "https://script.google.com/macros/s/AKfycbx270L2FdDmTn_ftVfpb3AQeZGstquj3CqlXWgE1KYwBThh9hbV8BDUBf-wvTrZ_iNldA/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbznfFEBX6wufSzkTNGVW2bS-fFLCLj7YjjS_Jxov6mEQCydcziwlbg93X3uJx2s_aX5Qw/exec";
 
 /**
  * Fetch financial data and UI config from GAS
@@ -33,7 +33,7 @@ export const postData = async (payload) => {
             },
             body: JSON.stringify(payload),
         });
-        
+
         // Note: With no-cors, the response is opaque. 
         // We cannot read response.json() or check response.ok.
         // We assume success if no error is thrown by fetch.
