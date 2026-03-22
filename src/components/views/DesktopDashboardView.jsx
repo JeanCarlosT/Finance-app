@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import useFinancialMetrics from '../../hooks/useFinancialMetrics';
 import useBiWeeklyAlerts from '../../hooks/useBiWeeklyAlerts';
+import useFortnightFilter from '../../hooks/useFortnightFilter'; // <--- NUEVO
 import BiWeeklyAlerts from '../dashboard/BiWeeklyAlerts';
 
 /**
@@ -45,7 +46,33 @@ const BudgetBar = ({ label, actual, limit, color }) => {
  * Component: Desktop Dashboard View
  */
 const DesktopDashboardView = ({ data }) => {
-  const { totalIncome, totalExpenses, currentBalance, budget, processedDebts } = useFinancialMetrics(data);
+  // --- Lógica de Filtrado Quincenal ---
+  const { label, nextFortnight, prevFortnight, filterData, startDate, endDate } = useFortnightFilter();
+  
+  // LOGS DE DIAGNÓSTICO
+  console.group("🔍 [DASHBOARD DIAGNOSTICS]");
+  console.log("1. Raw Data from GAS:", data);
+  console.log("2. Selected Range:", { label, startDate, endDate });
+  
+  const filteredTransactions = useMemo(() => {
+    const filtered = filterData(data?.financial_data?.transactions);
+    console.log("3. Filtered Transactions Count:", filtered?.length);
+    return filtered;
+  }, [data, filterData]);
+
+  // Re-empaquetamos los datos para useFinancialMetrics
+  const filteredData = useMemo(() => ({
+    ...data,
+    financial_data: {
+      ...data?.financial_data,
+      transactions: filteredTransactions
+    }
+  }), [data, filteredTransactions]);
+
+  console.log("4. Data Sent to Metrics:", filteredData);
+  console.groupEnd();
+
+  const { totalIncome, totalExpenses, currentBalance, budget, processedDebts } = useFinancialMetrics(filteredData);
   const filteredAlerts = useBiWeeklyAlerts(data?.financial_data?.debts_master);
 
   return (
@@ -58,6 +85,27 @@ const DesktopDashboardView = ({ data }) => {
             <h1 className="text-5xl font-black tracking-tighter italic text-slate-900">Dashboard.</h1>
             <p className="text-slate-400 font-bold text-sm tracking-tight mt-1">Smart Financial Intelligence V2</p>
           </div>
+
+          {/* Selector de Quincena */}
+          <div className="flex items-center gap-4 bg-white p-2 rounded-3xl border border-gray-100 shadow-sm">
+             <button 
+              onClick={prevFortnight} 
+              className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 rounded-2xl transition-all text-slate-400 font-black"
+             >
+               ←
+             </button>
+             <div className="px-4 min-w-[140px] text-center">
+               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-300 block">Periodo Actual</span>
+               <span className="text-sm font-black text-slate-800 tracking-tight">{label}</span>
+             </div>
+             <button 
+              onClick={nextFortnight}
+              className="w-10 h-10 flex items-center justify-center bg-gray-50 hover:bg-gray-100 rounded-2xl transition-all text-slate-400 font-black"
+             >
+               →
+             </button>
+          </div>
+
           <div className="flex gap-4">
             <div className="bg-white px-6 py-3 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
@@ -94,14 +142,13 @@ const DesktopDashboardView = ({ data }) => {
         {/* Middle Content: Budget Tracker */}
         <section className="bg-white p-10 rounded-[48px] shadow-sm border border-gray-100">
           <div className="flex justify-between items-center mb-10">
-            <h2 className="text-2xl font-black tracking-tight italic">Budget Adherence (50-30-10-10)</h2>
-            <span className="px-4 py-2 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-widest">Ideal Strategy</span>
+            <h2 className="text-2xl font-black tracking-tight italic">Budget Adherence (50-30-20)</h2>
+            <span className="px-4 py-2 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-widest">Strategy Approved</span>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-16 gap-y-10">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-12 gap-y-10">
             <BudgetBar {...budget.needs} />
             <BudgetBar {...budget.wants} />
             <BudgetBar {...budget.savings} />
-            <BudgetBar {...budget.lifestyle} />
           </div>
         </section>
 
